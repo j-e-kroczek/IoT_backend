@@ -53,7 +53,46 @@ class EmployeeCardLog(models.Model):
             + " "
             + str(self.date)
         )
+        
+class WorkSpace(models.Model):
+    class Meta:
+        verbose_name = "WorkSpace"
+        verbose_name_plural = "WorkSpaces"
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=50)
+    start_station = models.ForeignKey(
+        "WeatherStation", on_delete=models.CASCADE, related_name="work_space_start_station"
+    )
+    end_station = models.ForeignKey(
+        "WeatherStation", on_delete=models.CASCADE,  related_name="work_space_end_station"
+    )
+    def __str__(self):
+        return self.name
+        
+class WorkTime(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    work_space = models.ForeignKey(WorkSpace, on_delete=models.CASCADE)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField(null=True, blank=True)
+    start_station = models.ForeignKey(
+        "WeatherStation", on_delete=models.SET_NULL, null=True, related_name="start_station"
+    )
+    end_station = models.ForeignKey(
+        "WeatherStation", on_delete=models.SET_NULL, null=True, blank=True, related_name="end_station"
+    )
+    
+    def __str__(self):
+        return (
+            self.employee.name
+            + " "
+            + self.employee.surname
+            + " "
+            + str(self.start_date)
+            + " "
+            + str(self.end_date)
+        )
 
 class WeatherStation(models.Model):
     class Meta:

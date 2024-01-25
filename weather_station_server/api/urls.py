@@ -21,6 +21,7 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     path("check_employee_card/", views.CheckEmployeeCardView.as_view()),
+    path("handle_work_time/", views.HandleWorkTimeView.as_view()),
     path("send_weather_data/", views.SendWeatherDataApiView.as_view()),
     path("weather_data/", views.WeatherDataApiView.as_view()),
     path("weather_data/<slug:pk>/", views.WeatherDataDetailApiView.as_view()),
