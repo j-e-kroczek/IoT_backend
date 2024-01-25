@@ -24,10 +24,12 @@ class EmployeeCard(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     card_number = models.CharField(max_length=50)
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
+        if self.employee is None:
+            return self.card_number
         return self.card_number + " " + self.employee.name + " " + self.employee.surname
 
 

@@ -57,6 +57,7 @@ class CheckEmployeeCardView(APIView):
         try:
             card_number = request.data["card_number"]
         except:
+            print("ERROR - missing card_number parameter")
             return Response({"status": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
         weather_station = None
         if "weather_station" in request.data:
@@ -65,13 +66,19 @@ class CheckEmployeeCardView(APIView):
                 weather_station = get_object_or_404(
                     WeatherStation, id=weather_station, is_active=True
                 )
+                print(weather_station)
             except:
                 return Response(
                     {"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED
                 )
+        print(card_number)
+        if not EmployeeCard.objects.filter(card_number=card_number).exists():
+            EmployeeCard.objects.create(card_number=card_number, is_active=False)
+            return Response({"status": "New card created"}, status=status.HTTP_201_CREATED)
         employee_card = get_object_or_404(
             EmployeeCard, card_number=card_number, is_active=True
         )
+        print(employee_card)
         if employee_card.is_active:
             employee_card_log = EmployeeCardLog(
                 employee_card=employee_card,
@@ -663,7 +670,7 @@ class WeatherStationDataApiView(ListAPIView):
             weather_station = get_object_or_404(WeatherStation, id=pk)
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        weather_data = self.get_queryset(weather_station)
+        weather_data = self.get_queryset().filter(weather_station=weather_station)
         data = {
             "station_name": str(weather_station.name),
             "station_id": str(weather_station.id),
@@ -678,10 +685,8 @@ class WeatherStationDataApiView(ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def get_queryset(self, weather_station):
-        queryset = WeatherData.objects.filter(weather_station=weather_station).order_by(
-            "-date"
-        )
+    def get_queryset(self):
+        queryset = WeatherData.objects.all().order_by("-date")
         start_date = self.request.query_params.get("start_date", None)
         end_date = self.request.query_params.get("end_date", None)
         if start_date is not None:
@@ -697,6 +702,7 @@ class WeatherStationDataApiView(ListAPIView):
             except:
                 pass
         return queryset
+
 
 class EmployeeCardDataApiView(ListAPIView):
     """
@@ -746,7 +752,8 @@ class EmployeeCardDataApiView(ListAPIView):
             employee_card = get_object_or_404(EmployeeCard, id=pk)
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        employee_card_log = self.get_queryset(employee_card)
+        employee_card_log = self.get_queryset()
+        employee_card_log = employee_card_log.filter(employee_card=employee_card)
         data = {
             "card_number": str(employee_card.card_number),
             "employee": EmployeeSerializer(employee_card.employee).data,
@@ -761,10 +768,8 @@ class EmployeeCardDataApiView(ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def get_queryset(self, employee_card):
-        queryset = EmployeeCardLog.objects.filter(employee_card=employee_card).order_by(
-            "-date"
-        )
+    def get_queryset(self):
+        queryset = EmployeeCardLog.objects.all().order_by("-date")
         start_date = self.request.query_params.get("start_date", None)
         end_date = self.request.query_params.get("end_date", None)
         if start_date is not None:
