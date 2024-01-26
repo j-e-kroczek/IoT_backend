@@ -35,4 +35,5 @@ urlpatterns = [
     path("employee_card/", views.EmployeeCardApiView.as_view()),
     path("employee_card/<slug:pk>/", views.EmployeeCardDetailApiView.as_view()),
     path("employee_card/<slug:pk>/data", views.EmployeeCardDataApiView.as_view()),
+    path("work_space/", views.WorkTimeApiView.as_view()),
 ]
