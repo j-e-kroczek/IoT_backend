@@ -57,6 +57,7 @@ class CheckEmployeeCardView(APIView):
         try:
             card_number = request.data["card_number"]
         except:
+            print("ERROR - missing card_number parameter")
             return Response({"status": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
         weather_station = None
         if "weather_station" in request.data:
@@ -65,13 +66,19 @@ class CheckEmployeeCardView(APIView):
                 weather_station = get_object_or_404(
                     WeatherStation, id=weather_station, is_active=True
                 )
+                print(weather_station)
             except:
                 return Response(
                     {"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED
                 )
+        print(card_number)
+        if not EmployeeCard.objects.filter(card_number=card_number).exists():
+            EmployeeCard.objects.create(card_number=card_number, is_active=False)
+            return Response({"status": "New card created"}, status=status.HTTP_201_CREATED)
         employee_card = get_object_or_404(
             EmployeeCard, card_number=card_number, is_active=True
         )
+        print(employee_card)
         if employee_card.is_active:
             employee_card_log = EmployeeCardLog(
                 employee_card=employee_card,
@@ -82,6 +89,88 @@ class CheckEmployeeCardView(APIView):
             return Response({"status": "OK"}, status=status.HTTP_200_OK)
         else:
             return Response({"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+
+class HandleWorkTimeView(APIView):
+    """Handles work time."""
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["card_number", "weather_station"],
+            properties={
+                "card_number": openapi.Schema(type=openapi.TYPE_STRING),
+                "weather_station": openapi.Schema(
+                    type=openapi.TYPE_STRING, description="Weather station ID"
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="OK - WorkTime started or ended",
+                examples={
+                    "application/json": {
+                        "status": "OK",
+                    }
+                },
+            ),
+            400: openapi.Response(
+                description="Bad Request - missing card_number parameter",
+                examples={
+                    "application/json": {
+                        "status": "ERROR",
+                    }
+                },
+            ),
+            401: openapi.Response(
+                description="Unauthorized - card is not active or does not exist",
+                examples={
+                    "application/json": {
+                        "status": "ERROR",
+                    }
+                },
+            ),
+        },
+    )
+    def post(self, request):
+        try:
+            card_number = request.data["card_number"]
+        except:
+            return Response({"status": "ERROR - Provide card_number"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            weather_station = request.data["weather_station"]
+            weather_station = get_object_or_404(
+                WeatherStation, id=weather_station, is_active=True
+            )
+        except:
+            return Response(
+                {"status": "ERROR - Invalid work_station id"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        employee_card = get_object_or_404(
+            EmployeeCard, card_number=card_number
+        )
+        if employee_card.is_active:
+            if WorkTime.objects.filter(employee=employee_card.employee, end_date=None).exists():
+                work_time = WorkTime.objects.get(employee=employee_card.employee, end_date=None)
+                if work_time.work_space.end_station != weather_station:
+                    return Response({"status": "ERROR - Can't end WorkTime at this station!"}, status=status.HTTP_401_UNAUTHORIZED)
+                else:
+                    work_time.end_date = timezone.now()
+                    work_time.end_station = weather_station
+                    work_time.save()
+                    return Response({"status": "OK - WorkTime ended"}, status=status.HTTP_200_OK)
+            else:
+                try:
+                    work_space = WorkSpace.objects.filter(start_station=weather_station).first()
+                    if work_space is None:
+                        return Response({"status": "ERROR - Can't start WorkTime at this station!"}, status=status.HTTP_401_UNAUTHORIZED)
+                except:
+                    return Response({"status": "ERROR - Invalid work_station id"}, status=status.HTTP_401_UNAUTHORIZED)
+                work_time = WorkTime(employee=employee_card.employee, start_date=timezone.now(), start_station=weather_station, work_space=work_space)
+                work_time.save()
+                return Response({"status": "OK - WorkTime started"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"status": "ERROR - Employee card is inactive!"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class SendWeatherDataApiView(APIView):
@@ -581,7 +670,7 @@ class WeatherStationDataApiView(ListAPIView):
             weather_station = get_object_or_404(WeatherStation, id=pk)
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        weather_data = self.get_queryset(weather_station)
+        weather_data = self.get_queryset().filter(weather_station=weather_station)
         data = {
             "station_name": str(weather_station.name),
             "station_id": str(weather_station.id),
@@ -596,10 +685,8 @@ class WeatherStationDataApiView(ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def get_queryset(self, weather_station):
-        queryset = WeatherData.objects.filter(weather_station=weather_station).order_by(
-            "-date"
-        )
+    def get_queryset(self):
+        queryset = WeatherData.objects.all().order_by("-date")
         start_date = self.request.query_params.get("start_date", None)
         end_date = self.request.query_params.get("end_date", None)
         if start_date is not None:
@@ -615,6 +702,7 @@ class WeatherStationDataApiView(ListAPIView):
             except:
                 pass
         return queryset
+
 
 class EmployeeCardDataApiView(ListAPIView):
     """
@@ -664,7 +752,8 @@ class EmployeeCardDataApiView(ListAPIView):
             employee_card = get_object_or_404(EmployeeCard, id=pk)
         except:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        employee_card_log = self.get_queryset(employee_card)
+        employee_card_log = self.get_queryset()
+        employee_card_log = employee_card_log.filter(employee_card=employee_card)
         data = {
             "card_number": str(employee_card.card_number),
             "employee": EmployeeSerializer(employee_card.employee).data,
@@ -679,10 +768,8 @@ class EmployeeCardDataApiView(ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def get_queryset(self, employee_card):
-        queryset = EmployeeCardLog.objects.filter(employee_card=employee_card).order_by(
-            "-date"
-        )
+    def get_queryset(self):
+        queryset = EmployeeCardLog.objects.all().order_by("-date")
         start_date = self.request.query_params.get("start_date", None)
         end_date = self.request.query_params.get("end_date", None)
         if start_date is not None:
