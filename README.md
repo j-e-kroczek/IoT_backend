@@ -17,7 +17,7 @@ $ source env/bin/activate
 ```
 Windows
 ```
-> env\bin\activate
+> env\Scripts\activate
 ```
 ### Download packages
 ```
