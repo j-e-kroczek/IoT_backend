@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.fields import empty
-from .models import WeatherData, Employee, EmployeeCard, EmployeeCardLog, WeatherStation
+from .models import WeatherData, Employee, EmployeeCard, EmployeeCardLog, WeatherStation, WorkSpace, WorkTime
 from django.utils import timezone
 
 
@@ -85,3 +85,24 @@ class EmployeeCardDataSerializer(serializers.Serializer):
     card_number = serializers.CharField()
     employee = EmployeeSerializer()
     card_logs = EmployeeCardLogSerializer(many=True)
+
+
+class WorkSpaceSerializer(serializers.ModelSerializer):
+    
+    start_station = WeatherStationSerializer()
+    end_station = WeatherStationSerializer()
+    
+    class Meta:
+        model = WorkSpace
+        fields = ("id", "name", "start_station", "end_station")
+        
+class WorkTimeSerializer(serializers.ModelSerializer):
+    
+    work_space = WorkSpaceSerializer()
+    start_station = WeatherStationSerializer()
+    end_station = WeatherStationSerializer()
+    employee = EmployeeSerializer()
+    
+    class Meta:
+        model = WorkTime
+        fields = ("id", "work_space", "employee", "start_date", "end_date", "start_station", "end_station")

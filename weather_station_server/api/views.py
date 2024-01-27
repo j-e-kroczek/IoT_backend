@@ -71,14 +71,12 @@ class CheckEmployeeCardView(APIView):
                 return Response(
                     {"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED
                 )
-        print(card_number)
         if not EmployeeCard.objects.filter(card_number=card_number).exists():
             EmployeeCard.objects.create(card_number=card_number, is_active=False)
             return Response({"status": "New card created"}, status=status.HTTP_201_CREATED)
         employee_card = get_object_or_404(
-            EmployeeCard, card_number=card_number, is_active=True
+            EmployeeCard, card_number=card_number
         )
-        print(employee_card)
         if employee_card.is_active:
             employee_card_log = EmployeeCardLog(
                 employee_card=employee_card,
@@ -88,7 +86,7 @@ class CheckEmployeeCardView(APIView):
             employee_card_log.save()
             return Response({"status": "OK"}, status=status.HTTP_200_OK)
         else:
-            return Response({"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"status": "ERROR - card is inactive"}, status=status.HTTP_403_FORBIDDEN)
         
 
 class HandleWorkTimeView(APIView):
@@ -785,3 +783,61 @@ class EmployeeCardDataApiView(ListAPIView):
             except:
                 pass
         return queryset
+
+
+class WorkTimeApiView(APIView):
+    
+    serializer_class = WorkTimeSerializer
+    response_schema_dict = {
+        200: openapi.Response(
+            description="List of work times",
+            schema=WorkTimeSerializer(many=True),
+        )
+    }
+    start_date_param = openapi.Parameter(
+        "start_date",
+        openapi.IN_QUERY,
+        description="Start date for filtering data (YYYY-MM-DD)",
+        type=openapi.TYPE_STRING,
+    )
+    end_date_param = openapi.Parameter(
+        "end_date",
+        openapi.IN_QUERY,
+        description="End date for filtering data (YYYY-MM-DD)",
+        type=openapi.TYPE_STRING,
+    )
+    employee_param = openapi.Parameter(
+        "employee",
+        openapi.IN_QUERY,
+        description="ID of the employee",
+        type=openapi.TYPE_STRING,
+    )
+    work_space_param = openapi.Parameter(
+        "work_space",
+        openapi.IN_QUERY,
+        description="ID of the work space",
+        type=openapi.TYPE_STRING,
+    )
+    
+    @swagger_auto_schema(
+        manual_parameters=[start_date_param, end_date_param, employee_param, work_space_param],
+        responses=response_schema_dict,
+    )
+    def get(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = WorkTimeSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
+    def get_queryset(self):
+        queryset = WorkTime.objects.all().order_by("-start_date")
+        if self.request.query_params.get("employee", None) is not None:
+            queryset = queryset.filter(employee=self.request.query_params.get("employee", None))
+        if self.request.query_params.get("work_space", None) is not None:
+            queryset = queryset.filter(work_space=self.request.query_params.get("work_space", None))
+        if self.request.query_params.get("start_date", None) is not None:
+            queryset = queryset.filter(start_date__gte=self.request.query_params.get("start_date", None))
+        if self.request.query_params.get("end_date", None) is not None:
+            queryset = queryset.filter(end_date__lte=self.request.query_params.get("end_date", None))
+        return queryset    
+    
