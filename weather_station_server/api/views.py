@@ -71,9 +71,6 @@ class CheckEmployeeCardView(APIView):
                 return Response(
                     {"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED
                 )
-        if not EmployeeCard.objects.filter(card_number=card_number).exists():
-            EmployeeCard.objects.create(card_number=card_number, is_active=False)
-            return Response({"status": "New card created"}, status=status.HTTP_201_CREATED)
         employee_card = get_object_or_404(
             EmployeeCard, card_number=card_number
         )
@@ -87,7 +84,85 @@ class CheckEmployeeCardView(APIView):
             return Response({"status": "OK"}, status=status.HTTP_200_OK)
         else:
             return Response({"status": "ERROR - card is inactive"}, status=status.HTTP_403_FORBIDDEN)
-        
+
+class NewEmployeeCardView(APIView):
+    """Checks if the card is active, otherwise creates a new one."""
+
+    @swagger_auto_schema(
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["card_number"],
+            properties={
+                "card_number": openapi.Schema(type=openapi.TYPE_STRING),
+                "weather_station": openapi.Schema(
+                    type=openapi.TYPE_STRING, description="Weather station ID"
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="OK - card is active",
+                examples={
+                    "application/json": {
+                        "status": "OK",
+                    }
+                },
+            ),
+            201: openapi.Response(
+                description="OK - new card created",
+                examples={
+                    "application/json": {
+                        "status": "OK",
+                    }
+                },
+            ),
+            400: openapi.Response(
+                description="Bad Request - missing card_number parameter",
+                examples={
+                    "application/json": {
+                        "status": "ERROR",
+                    }
+                },
+            ),
+            401: openapi.Response(
+                description="Unauthorized - card is not active or does not exist",
+                examples={
+                    "application/json": {
+                        "status": "ERROR",
+                    }
+                },
+            ),
+        },
+    )
+    def post(self, request):
+        try:
+            card_number = request.data["card_number"]
+        except:
+            print("ERROR - missing card_number parameter")
+            return Response({"status": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        weather_station = None
+        if "weather_station" in request.data:
+            weather_station = request.data["weather_station"]
+            try:
+                weather_station = get_object_or_404(
+                    WeatherStation, id=weather_station, is_active=True
+                )
+                print(weather_station)
+            except:
+                return Response(
+                    {"status": "ERROR"}, status=status.HTTP_401_UNAUTHORIZED
+                )
+        if not EmployeeCard.objects.filter(card_number=card_number).exists():
+            EmployeeCard.objects.create(card_number=card_number, is_active=False)
+            return Response({"status": "New card created"}, status=status.HTTP_201_CREATED)
+        employee_card = get_object_or_404(
+            EmployeeCard, card_number=card_number
+        )
+        if employee_card.is_active:
+            return Response({"status": "OK"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"status": "ERROR - card is inactive"}, status=status.HTTP_403_FORBIDDEN)
+                
 
 class HandleWorkTimeView(APIView):
     """Handles work time."""
